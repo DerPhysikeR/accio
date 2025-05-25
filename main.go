@@ -1,11 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/ncruces/zenity"
 )
@@ -46,9 +46,11 @@ func queryTarget(target string) string {
 }
 
 func main() {
-	if len(os.Args) > 1 {
-		fmt.Println("Query target:", os.Args[1])
-		result := queryTarget(os.Args[1])
+	flag.Parse()
+	args := flag.Args()
+	if len(args) > 0 {
+		fmt.Println("Query target:", args[0])
+		result := queryTarget(args[0])
 		fmt.Println(result)
 	} else {
 		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
