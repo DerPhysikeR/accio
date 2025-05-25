@@ -129,6 +129,12 @@ func main() {
 		}
 	} else {
 		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
-		log.Fatal(http.ListenAndServe(":"+*port, nil))
+		log.Printf("Server listening on :%s", *port)
+		for {
+			if err := http.ListenAndServe(":"+*port, nil); err != nil {
+				log.Printf("Server crashed: %v", err)
+			}
+		}
 	}
 }
+
