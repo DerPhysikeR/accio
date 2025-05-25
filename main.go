@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/ncruces/zenity"
+	"golang.org/x/crypto/nacl/box"
 )
 
 type UserQuery func() string
@@ -28,11 +31,13 @@ func defaultQueryUser() string {
 }
 
 type QueryRequest struct {
-	// Query string `json:"query"`
+	ClientPublicKey string `json:"client_public_key"`
 }
 
 type QueryResponse struct {
-	Secret string `json:"secret"`
+	ServerPublicKey string `json:"server_public_key"`
+	Nonce           string `json:"nonce"`
+	Encrypted       string `json:"encrypted"`
 }
 
 func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
@@ -42,16 +47,38 @@ func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
+		clientPubKey, err := base64.StdEncoding.DecodeString(req.ClientPublicKey)
+		if err != nil || len(clientPubKey) != 32 {
+			http.Error(w, "invalid public key", http.StatusBadRequest)
+			return
+		}
+		var clientKey [32]byte
+		copy(clientKey[:], clientPubKey)
+
 		secret := queryUser()
+
+		var nonce [24]byte
+		rand.Read(nonce[:])
+
+		pub, priv, _ := box.GenerateKey(rand.Reader)
+
+		encrypted := box.Seal(nil, []byte(secret), &nonce, &clientKey, priv)
+
 		resp := QueryResponse{
-			Secret: secret,
+			ServerPublicKey: base64.StdEncoding.EncodeToString(pub[:]),
+			Nonce:           base64.StdEncoding.EncodeToString(nonce[:]),
+			Encrypted:       base64.StdEncoding.EncodeToString(encrypted),
+
 		}
 		json.NewEncoder(w).Encode(resp)
 	}
 }
 
 func queryTarget(target string) string {
-	req := QueryRequest{}
+	pub, priv, _ := box.GenerateKey(rand.Reader)
+	req := QueryRequest{
+		ClientPublicKey: base64.StdEncoding.EncodeToString(pub[:]),
+	}
 	b, _ := json.Marshal(req)
 	resp, err := http.Post(target, "application/json", strings.NewReader(string(b)))
 	if err != nil {
@@ -60,7 +87,22 @@ func queryTarget(target string) string {
 	defer resp.Body.Close()
 	var qr QueryResponse
 	json.NewDecoder(resp.Body).Decode(&qr)
-	return qr.Secret
+
+	srvPubBytes, _ := base64.StdEncoding.DecodeString(qr.ServerPublicKey)
+	var srvPub [32]byte
+	copy(srvPub[:], srvPubBytes)
+
+	nonceBytes, _ := base64.StdEncoding.DecodeString(qr.Nonce)
+	var nonce [24]byte
+	copy(nonce[:], nonceBytes)
+
+	encBytes, _ := base64.StdEncoding.DecodeString(qr.Encrypted)
+	msg, ok := box.Open(nil, encBytes, &nonce, &srvPub, priv)
+	if !ok {
+		log.Fatal("decryption failed")
+	}
+	fmt.Println("Decrypted response:", string(msg))
+	return string(msg)
 }
 
 func main() {
