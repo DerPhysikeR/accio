@@ -17,9 +17,9 @@ import (
 	"golang.org/x/crypto/nacl/box"
 )
 
-type UserQuery func(string, string) (string, error)
+type UserDialog func(string, string) (string, error)
 
-func defaultQueryUser(title string, question string) (string, error) {
+func defaultUserDialog(title string, question string) (string, error) {
 	secret, err := zenity.Entry(
 		question,
 		zenity.Title(title),
@@ -43,7 +43,7 @@ type QueryResponse struct {
 	Encrypted       string `json:"encrypted"`
 }
 
-func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
+func createQueryHandler(showDialog UserDialog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		remoteAddr := r.RemoteAddr
 		log.Printf("[%s] Received request from %s", time.Now().Format(time.RFC3339), remoteAddr)
@@ -66,7 +66,7 @@ func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 		var clientKey [32]byte
 		copy(clientKey[:], clientPubKey)
 
-		secret, err := queryUser(req.Title, req.Question)
+		secret, err := showDialog(req.Title, req.Question)
 		if err != nil {
 			http.Error(w, "user canceled or dialog error", http.StatusBadRequest)
 			log.Printf("[%s] User canceled or error for request from %s: %v", time.Now().Format(time.RFC3339), remoteAddr, err)
@@ -143,7 +143,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "Command execution failed:", err)
 		}
 	} else {
-		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
+		http.HandleFunc("/accio", createQueryHandler(defaultUserDialog))
 		log.Printf("[%s] Server listening on :%s", time.Now().Format(time.RFC3339), *port)
 		for {
 			if err := http.ListenAndServe(":"+*port, nil); err != nil {
