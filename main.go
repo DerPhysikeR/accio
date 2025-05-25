@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -27,25 +27,40 @@ func defaultQueryUser() string {
 	return secret
 }
 
+type QueryRequest struct {
+	// Query string `json:"query"`
+}
+
+type QueryResponse struct {
+	Secret string `json:"secret"`
+}
+
 func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var req QueryRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
 		secret := queryUser()
-		fmt.Fprint(w, secret)
+		resp := QueryResponse{
+			Secret: secret,
+		}
+		json.NewEncoder(w).Encode(resp)
 	}
 }
 
 func queryTarget(target string) string {
-	resp, err := http.Get(target)
+	req := QueryRequest{}
+	b, _ := json.Marshal(req)
+	resp, err := http.Post(target, "application/json", strings.NewReader(string(b)))
 	if err != nil {
 		log.Fatalf("Request failed: %v", err)
 	}
 	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Reading response failed: %v", err)
-	}
-	return string(body)
+	var qr QueryResponse
+	json.NewDecoder(resp.Body).Decode(&qr)
+	return qr.Secret
 }
 
 func main() {
