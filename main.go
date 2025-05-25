@@ -123,7 +123,7 @@ func queryTarget(target string, title string, question string) string {
 }
 
 func main() {
-	commandTemplate := flag.String("c", "", "Command to execute, optionally containing {{}} as a placeholder")
+	commandTemplate := flag.String("c", "echo {{}}", "Command to execute, optionally containing {{}} as a placeholder")
 	port := flag.String("p", "51800", "Port to listen on for HTTP requests")
 	title := flag.String("t", "Enter Secret", "Title for the dialog box")
 	question := flag.String("q", "Please enter secret:", "Question for the dialog box")
