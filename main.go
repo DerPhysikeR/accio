@@ -6,6 +6,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/ncruces/zenity"
 )
@@ -46,12 +49,23 @@ func queryTarget(target string) string {
 }
 
 func main() {
+	commandTemplate := flag.String("c", "", "Command to execute, optionally containing {{}} as a placeholder")
 	flag.Parse()
 	args := flag.Args()
 	if len(args) > 0 {
 		fmt.Println("Query target:", args[0])
 		result := queryTarget(args[0])
-		fmt.Println(result)
+
+		commandStr := strings.ReplaceAll(*commandTemplate, "{{}}", result)
+		cmd := exec.Command("sh", "-c", commandStr)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		err := cmd.Run()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Command execution failed:", err)
+			os.Exit(1)
+		}
 	} else {
 		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
 		log.Fatal(http.ListenAndServe(":1234", nil))
