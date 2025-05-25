@@ -8,8 +8,17 @@ import (
 	"os"
 )
 
-func queryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "secret")
+type UserQuery func() string
+
+func defaultQueryUser() string {
+	return "secret"
+}
+
+func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		secret := queryUser()
+		fmt.Fprint(w, secret)
+	}
 }
 
 func queryTarget(target string) string {
@@ -32,7 +41,7 @@ func main() {
 		result := queryTarget(os.Args[1])
 		fmt.Println(result)
 	} else {
-		http.HandleFunc("/accio", queryHandler)
+		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
 		log.Fatal(http.ListenAndServe(":1234", nil))
 	}
 }
