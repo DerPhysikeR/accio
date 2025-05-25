@@ -101,7 +101,6 @@ func queryTarget(target string) string {
 	if !ok {
 		log.Fatal("decryption failed")
 	}
-	fmt.Println("Decrypted response:", string(msg))
 	return string(msg)
 }
 
