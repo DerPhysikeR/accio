@@ -17,18 +17,18 @@ import (
 	"golang.org/x/crypto/nacl/box"
 )
 
-type UserQuery func(string, string) string
+type UserQuery func(string, string) (string, error)
 
-func defaultQueryUser(title string, question string) string {
+func defaultQueryUser(title string, question string) (string, error) {
 	secret, err := zenity.Entry(
 		question,
 		zenity.Title(title),
 		zenity.HideText(),
 	)
 	if err != nil {
-		log.Fatalf("Dialog error: %v", err)
+		return "", fmt.Errorf("dialog error: %w", err)
 	}
-	return secret
+	return secret, nil
 }
 
 type QueryRequest struct {
@@ -66,7 +66,12 @@ func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 		var clientKey [32]byte
 		copy(clientKey[:], clientPubKey)
 
-		secret := queryUser(req.Title, req.Question)
+		secret, err := queryUser(req.Title, req.Question)
+		if err != nil {
+			http.Error(w, "user canceled or dialog error", http.StatusBadRequest)
+			log.Printf("[%s] User canceled or error for request from %s: %v", time.Now().Format(time.RFC3339), remoteAddr, err)
+			return
+		}
 
 		var nonce [24]byte
 		rand.Read(nonce[:])
