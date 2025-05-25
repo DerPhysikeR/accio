@@ -35,7 +35,7 @@ func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 }
 
 func queryTarget(target string) string {
-	resp, err := http.Get(target + ":1234/accio")
+	resp, err := http.Get(target)
 	if err != nil {
 		log.Fatalf("Request failed: %v", err)
 	}
@@ -50,11 +50,12 @@ func queryTarget(target string) string {
 
 func main() {
 	commandTemplate := flag.String("c", "", "Command to execute, optionally containing {{}} as a placeholder")
+	port := flag.String("p", "51800", "Port to listen on for HTTP requests")
 	flag.Parse()
 	args := flag.Args()
 	if len(args) > 0 {
 		fmt.Println("Query target:", args[0])
-		result := queryTarget(args[0])
+		result := queryTarget(args[0] + ":" + *port + "/accio")
 
 		commandStr := strings.ReplaceAll(*commandTemplate, "{{}}", result)
 		cmd := exec.Command("sh", "-c", commandStr)
@@ -68,6 +69,6 @@ func main() {
 		}
 	} else {
 		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
-		log.Fatal(http.ListenAndServe(":1234", nil))
+		log.Fatal(http.ListenAndServe(":"+*port, nil))
 	}
 }
