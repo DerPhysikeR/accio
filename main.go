@@ -130,7 +130,6 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) > 0 {
-		fmt.Println("Query target:", args[0])
 		result := queryTarget(args[0]+":"+*port+"/accio", *title, *question)
 
 		commandStr := strings.ReplaceAll(*commandTemplate, "{{}}", result)
