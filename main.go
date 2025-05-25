@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/ncruces/zenity"
 	"golang.org/x/crypto/nacl/box"
@@ -44,14 +45,22 @@ type QueryResponse struct {
 
 func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		remoteAddr := r.RemoteAddr
+		log.Printf("[%s] Received request from %s", time.Now().Format(time.RFC3339), remoteAddr)
+
 		var req QueryRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			log.Printf("[%s] Invalid JSON from %s", time.Now().Format(time.RFC3339), remoteAddr)
 			return
 		}
+
+		log.Printf("[%s] Title: %q, Question: %q", time.Now().Format(time.RFC3339), req.Title, req.Question)
+
 		clientPubKey, err := base64.StdEncoding.DecodeString(req.ClientPublicKey)
 		if err != nil || len(clientPubKey) != 32 {
 			http.Error(w, "invalid public key", http.StatusBadRequest)
+			log.Printf("[%s] Invalid public key from %s", time.Now().Format(time.RFC3339), remoteAddr)
 			return
 		}
 		var clientKey [32]byte
@@ -72,6 +81,7 @@ func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 			Encrypted:       base64.StdEncoding.EncodeToString(encrypted),
 		}
 		json.NewEncoder(w).Encode(resp)
+		log.Printf("[%s] Responded to %s successfully", time.Now().Format(time.RFC3339), remoteAddr)
 	}
 }
 
@@ -129,12 +139,11 @@ func main() {
 		}
 	} else {
 		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
-		log.Printf("Server listening on :%s", *port)
+		log.Printf("[%s] Server listening on :%s", time.Now().Format(time.RFC3339), *port)
 		for {
 			if err := http.ListenAndServe(":"+*port, nil); err != nil {
-				log.Printf("Server crashed: %v", err)
+				log.Printf("[%s] Server crashed: %v", time.Now().Format(time.RFC3339), err)
 			}
 		}
 	}
 }
-
