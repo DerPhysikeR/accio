@@ -6,12 +6,22 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/ncruces/zenity"
 )
 
 type UserQuery func() string
 
 func defaultQueryUser() string {
-	return "secret"
+	secret, err := zenity.Entry(
+		"Enter secret",
+		zenity.Title("Enter Secret"),
+		zenity.HideText(),
+	)
+	if err != nil {
+		log.Fatalf("Dialog error: %v", err)
+	}
+	return secret
 }
 
 func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
