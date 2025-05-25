@@ -16,12 +16,12 @@ import (
 	"golang.org/x/crypto/nacl/box"
 )
 
-type UserQuery func() string
+type UserQuery func(string, string) string
 
-func defaultQueryUser() string {
+func defaultQueryUser(title string, question string) string {
 	secret, err := zenity.Entry(
-		"Enter secret",
-		zenity.Title("Enter Secret"),
+		question,
+		zenity.Title(title),
 		zenity.HideText(),
 	)
 	if err != nil {
@@ -31,6 +31,8 @@ func defaultQueryUser() string {
 }
 
 type QueryRequest struct {
+	Title           string `json:"title"`
+	Question        string `json:"question"`
 	ClientPublicKey string `json:"client_public_key"`
 }
 
@@ -55,7 +57,7 @@ func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 		var clientKey [32]byte
 		copy(clientKey[:], clientPubKey)
 
-		secret := queryUser()
+		secret := queryUser(req.Title, req.Question)
 
 		var nonce [24]byte
 		rand.Read(nonce[:])
@@ -68,15 +70,16 @@ func createQueryHandler(queryUser UserQuery) http.HandlerFunc {
 			ServerPublicKey: base64.StdEncoding.EncodeToString(pub[:]),
 			Nonce:           base64.StdEncoding.EncodeToString(nonce[:]),
 			Encrypted:       base64.StdEncoding.EncodeToString(encrypted),
-
 		}
 		json.NewEncoder(w).Encode(resp)
 	}
 }
 
-func queryTarget(target string) string {
+func queryTarget(target string, title string, question string) string {
 	pub, priv, _ := box.GenerateKey(rand.Reader)
 	req := QueryRequest{
+		Title:           title,
+		Question:        question,
 		ClientPublicKey: base64.StdEncoding.EncodeToString(pub[:]),
 	}
 	b, _ := json.Marshal(req)
@@ -107,11 +110,13 @@ func queryTarget(target string) string {
 func main() {
 	commandTemplate := flag.String("c", "", "Command to execute, optionally containing {{}} as a placeholder")
 	port := flag.String("p", "51800", "Port to listen on for HTTP requests")
+	title := flag.String("t", "Enter Secret", "Title for the dialog box")
+	question := flag.String("q", "Please enter secret:", "Question for the dialog box")
 	flag.Parse()
 	args := flag.Args()
 	if len(args) > 0 {
 		fmt.Println("Query target:", args[0])
-		result := queryTarget(args[0] + ":" + *port + "/accio")
+		result := queryTarget(args[0]+":"+*port+"/accio", *title, *question)
 
 		commandStr := strings.ReplaceAll(*commandTemplate, "{{}}", result)
 		cmd := exec.Command("sh", "-c", commandStr)
@@ -121,7 +126,6 @@ func main() {
 		err := cmd.Run()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Command execution failed:", err)
-			os.Exit(1)
 		}
 	} else {
 		http.HandleFunc("/accio", createQueryHandler(defaultQueryUser))
